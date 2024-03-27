@@ -1,0 +1,481 @@
+...........practical ospf,ntp,syslog,ssh.......
+*ospf*
+en
+conf t
+router ospf 1
+network 192.168.1.0 0.0.0.255 area 0
+network 10.1.1.0 0.0.0.3 area 0
+(do this for all router)
+ 
+*ospf md5 authentication*
+ip ospf message-digest-key 1 md5 MD5pa55
+show ip ospf interface
+ 
+*ntp*
+pc1->services->NTP->key :1
+password: NTPpa55
+change date
+ 
+conf:
+ntp server 192.168.1.5
+ntp update-calendar
+ntp authenticate
+ntp trusted-key 1
+ntp authentication-key 1 md5 NTPpa55
+service timestamps log datetime msec
+R#show clock
+(same for all router)
+ 
+*Syslog*
+logging host 192.168.1.6
+show logging
+(same for all router)
+ 
+ 
+*SSH on R3*
+ip domain-name ccnasecurity.com 
+username SSHadmin privilege 15 secret ciscosshpa55 
+line vty 0 4
+login local 
+transport input ssh
+en 
+crypto key  zeroize rsa 
+crypto key generate rsa
+1024
+ex
+show ip ssh 
+ip ssh time-out 90 
+ip ssh authentication-retries 2
+ip ssh version 2
+end
+ 
+*terminal*
+ssh -1 SSHadmin 192.168.3.1
+pc-c -> 
+telnet 192.168.3.1
+ssh -1 SSHadmin 192.168.3.1
+ 
+ 
+ 
+ 
+ 
+.........practical AAA authentication:..........done
+*configure*
+*ospf configuration*
+line vty 0 4
+password admin
+login 
+en
+router ospf 1
+network 192.168.1.0 0.0.0.255 area 0
+network 10.1.1.0 0.0.0.255 area 0
+ 
+((Same for R2)))
+line vty 0 4
+password admin
+login 
+en
+router ospf 2
+network 192.168.2.0 0.0.0.255 area 0
+network 10.1.1.0 0.0.0.255 area 0
+network 10.2.2.0 0.0.0.255 area 0
+ 
+((( and R3))
+line vty 0 4
+password admin
+login 
+en
+router ospf 3
+network 192.168.3.0 0.0.0.255 area 0
+network 10.2.2.0 0.0.0.255 area 0
+ 
+ 
+*local database R1*
+en
+conf t
+username Admin1 secret admin1pa55
+aaa new-model
+aaa authentication login default local
+line console 0
+login authentication default
+end 
+exit
+*enter username password*
+*configure local authentication for ssh*
+en
+conf t
+ip domain-name ccnasecurity.com
+crypto key generate rsa
+1024
+*configure named AAA*
+aaa authentication login SSH-LOGIN local
+line vty 0 4
+login authentication SSHLOGIN 
+transport input ssh 
+end
+*verify the AAA*
+PC-Acmd(ssh -l Admin1 192.168.1.1
+password admin1pa55
+ 
+*Part 2*
+R2:
+username Admin2 secret admin2pa55
+*Go to tacas service AAA client name R2 192.168.2.1 tacaspa55 TACACS+ 
+username-Admin2 pass-admin2pa55*
+*Configure on aaa login on R2*
+tacacs-server host 192.168.2.2
+tacacs-server key tacacspa55 
+aaa new-model
+aaa authentication login default group tacacs+ local
+line console 0 
+end & exit (login)
+ 
+R3:
+username Admin3 secret admin3pa55
+*Go to radius service AAA client name R3 192.168.3.1 radiuspa55 RADIUS
+username-Admin3 pass-admin3pa55*
+*Configure on aaa login on R3*
+radius-server host 192.168.3.2
+radius-server key radiuspa55
+aaa new-model 
+aaa authentication login default group radius local
+line console 0
+login authentication default
+end &exit(login)
+ 
+ 
+ 
+ 
+ 
+ 
+..................practical 3 extended acl..................done
+2911 router;;;;
+*R1*
+en
+conf t
+access-list 100 permit tcp 172.22.34.64 0.0.0.31 host 172.22.34.62 eq ftp
+access-list 100 permit icmp 172.22.34.64 0.0.0.31 host 172.22.34.62
+*interface 0/0*
+ip access-group 100 in
+ex
+*FTP from PC1 to Server. The username and password are both cisco. *
+PC> ftp 172.22.34.62
+ 
+*www acl*
+ip access-list extended HTTP_ONLY 
+permit tcp 172.22.34.96 0.0.0.15 host 172.22.34.62 eq www
+permit icmp 172.22.34.96 0.0.0.15 host 172.22.34.62
+en
+* interface gigabitEthernet 0/1*
+ip access-group HTTP_ONLY in
+*pc-2 browse*
+http://172.22.34.62
+ 
+ 
+..................practical ip acl to mitigate attack &ipv6 acls....................
+router 4331;;;;;;;
+*R1*
+ip route 192.168.0.0 255.255.255.0 10.10.10.2
+*r1 config*
+enable secret enpas55
+line console 0
+password conpa55
+login
+exit
+ip domain-name ccnasecurity.com
+username admin secret adminpa55
+line vty 0 4
+login local
+transport input ssh
+exit
+crypto key generate rsa
+1024
+*pc c cmd*
+telnet 10.10.10.1(should fail)
+ssh -l admin 10.10.10.1
+password:adminpa55
+ 
+*configure ip6 address*
+pc-a -.>desktop ->ipv6
+2001:DB8:1:10::10  /64
+(local)FE80::260:70FF:FE2E:A307(default)
+DG:FE80::1
+pc-c->
+2001:DB8:1:10::9  /64
+(local)FE80::20A:41FF:FE2B:9D61(default)
+DG:FE80::1
+ 
+ 
+FOe server:
+2001:DB8:1:30::30
+FE80::230:F2FF:FE24:DO43(DEFAULT)
+DG:FE80::30
+ 
+R1 config:
+no access-list 1
+access-list I20 permit tcp host 192.168.0.2 host 162.168.0.1 eq 22 
+conf t
+interface g0/0/0
+ipv6 address 2001:DB8:1:10::1/64
+ipv6 address FE80::1 link-local
+exit
+interfaqce g0/0/1
+ipv6 address 2001:DB8:1:30::1/64
+ipv6 address FE80::30 link-local
+ex
+ipv6 unicast-routing
+ipv6 route 2001:DB8:1:10::1/64  2001:DB8:1:30::30
+ 
+*pca-desktop-browser* http://2001:DB8:1:30::30*
+*r1 config*
+ipv6 access-list HTTP
+permit tcp host 2001:DB8:1:10::9 host 2001:DB8:1:30::30 eq www
+permit tcp host 2001:DB8:1:10::9 host 2001:DB8:1:30::30 eq 443
+ex
+interface g0/0/0
+ipv6 traffic-filter HTTP in
+*pca-desktop-browser -- put same url*
+ 
+ 
+ 
+......................practical  Zone Based policy................done
+router 1941;;;;;
+*R1 config*
+enable secret enpas55
+line console 0
+password conpas55
+login
+exit
+ip domain-name ccnasecurity.com
+username admin secret adminpa55
+line vty 0 4
+login local
+exit
+crypto key generate rsa
+*R1#show version*
+license boot module c1900 technology-package securityk9
+ex
+R1#reload
+zone security internal
+ex
+zone security external
+ex ex
+show version
+ 
+*R1 config*
+conf t
+ip access-list extended 101
+permit ip 192.168.0.0 0.0.0.255 any
+ex
+class-map type inspect match-all 101
+match access-group name 101
+ex
+policy-map type inspect 101
+class type inspect 101
+inspect
+ex
+ex
+(config)#zone-pair security 101 source internal destination external
+service-policy type inspect 101
+ex
+interface g0/0
+zone-member security internal
+ex
+interface g0/1
+zone-member security external
+ex
+ex
+copy running-config startup-config
+*go to pc c and ping 10.10.10.2*
+ 
+ 
+ 
+................practical ios..............done
+router 1941
+*R1*
+ip domain-name ccnasecurity.com
+username admin secret adminpa55
+line vty 0 4
+login local
+exit
+crypto key generate rsa
+1024
+ex
+show version
+license boot module c1900 technology-package securityk9 
+ex
+reload
+ 
+*R1#*
+mkdir iosips
+conf t
+ip ips config location flash:iosips
+ip ips name iosips
+ip ips signature-category
+category all
+retired true
+ex
+category ios_ips basic
+retired false
+ex
+ex
+interface gi0/1
+ip ips iosips out
+ex
+ip ips notify log
+ex
+*R1#clock set(current server time) & date*
+*go to server- services>ntp>copy thr time paste on the above command*
+ 
+conf t
+service timestamps log datetime msec
+logging host 10.10.10.2
+ip ips signature-definition
+signature 2004 0
+status
+retired true
+enabled true
+retired false
+ex
+engine
+event-action produce-alert
+event-action deny-packet-inline
+ex
+ex
+ex
+(now ping the pc and server .it should not happen should maintain log)
+ 
+ 
+ 
+...................practical Layer 2 security..........:done
+router 1941
+PT cloud(serial 0)
+3560-24ps
+switch 2950T-24
+ 
+*SW1
+enable secret enpas55
+line console 0
+password conpas55
+login
+exit
+ip domain-name ccnasecurity.com
+username admin secret adminpa55
+line vty 0 4
+login local
+exit
+crypto key generate rsa*
+ 
+*Central*
+spanning-tree vlan 1 root primary 
+ex
+*Sw1*
+spanning-tree vlan 1 root secondary
+*central*
+show spanning-tree
+*SA*
+interface range fastEthernet 0/1-4
+spanning-tree portfast
+spanning-tree bpduguard enable
+ex
+*SB*
+interface range fastEthernet 0/1-4
+spanning-tree portfast
+spanning-tree bpduguard enable
+*sw1*
+interface range fastEthernet 0/23-24
+spanning-tree guard root
+*sw2*
+interface range fastEthernet 0/23-24
+spanning-tree guard root
+*swa*
+interface range f 0/1-22
+switchport mode access
+switchport port-security maximum 2
+switchport port-security violation shutdown
+switchport port-security mac-address sticky
+*swb*
+interface range f 0/1-22
+switchport mode access
+switchport port-security maximum 2
+switchport port-security violation shutdown
+switchport port-security mac-address sticky
+*swa*
+ex ex ex
+*swb*
+ex ex ex
+login using password
+*
+swa#show port-security interface f0/1
+#conf t
+interface range fastEthernet 0/5-22
+shutdown
+ 
+ 
+.............practical site-to-site ipsec.............:
+switch : 2960-24TT
+router: 1941
+ 
+(in all router)
+enable secret enpa55
+line console 0
+password conpa55
+login
+exit
+ip domain-name ccnasecurity.com
+username admin secret adminpa55
+line vty 0 4
+login local
+exit
+crypto key generate rsa
+1024
+ 
+*ospf perform*
+*config enable security for both R1 and R3*
+license boot module c1900 technology-package securityk9
+y
+reload
+ 
+*R1*
+access-list 110 permit ip 192.168.1.0 0.0.0.255 192.168.3.0 0.0.0.255
+crypto isakmp policy 10
+encryption aes 256
+authentication pre-share
+group 5
+exit
+crypto isakmp key vpnpa55 address 10.2.2.2
+crypto ipsec transform-set VPN-SET esp-aes esp-sha-hmac
+crypto map VPN-MAP 10 ipsec-isakmp
+description VPN connection to R3
+set peer 10.2.2.2
+set transform-set VPN-SET
+match address 110
+exit
+interface se0/0/0
+crypto map VPN-MAP
+ 
+*R3*
+access-list 110 permit ip 192.168.3.0 0.0.0.255 192.168.1.0 0.0.0.255
+crypto isakmp policy 10
+encryption aes 256
+authentication pre-share
+group 5
+exit
+crypto isakmp key vpnpa55 address 10.1.1.2
+crypto ipsec transform-set VPN-SET esp-aes esp-sha-hmac
+crypto map VPN-MAP 10 ipsec-isakmp
+description VPN connection to R1
+set peer 10.1.1.2
+set transform-set VPN-SET
+match address 110
+exit
+interface se0/0/1
+crypto map VPN-MAP
+ 
+*R1# show crypto ipsec sa*
+*R3# show crypto ipsec sa*
+ 
+ 
+ 
+ 
+practical  2 layer 2 vlan:
